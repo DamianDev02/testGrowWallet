@@ -35,6 +35,10 @@ export class CategoryService {
     return this.categoryRepository.find({ where: { user: { id: user.id } } });
   }
 
+  findAllDefauld() {
+    return this.categoryRepository.find();
+  }
+
   async update(
     id: string,
     updateCategoryDto: UpdateCategoryDto,

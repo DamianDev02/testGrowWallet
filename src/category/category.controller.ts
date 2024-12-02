@@ -23,6 +23,11 @@ export class CategoryController {
   async createDefaultCategory(@Body() createCategoryDto: CreateCategoryDto) {
     return this.categoryService.createDefaultCategory(createCategoryDto);
   }
+
+  @Get()
+  async findAllDefauld() {
+    return this.categoryService.findAllDefauld();
+  }
   @UseGuards(AuthGuard)
   @Post()
   async create(
