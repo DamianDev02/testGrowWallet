@@ -1,5 +1,5 @@
 // src/transaction/transaction.controller.ts
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get } from '@nestjs/common';
 import { TransactionService } from './transaction.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { ActiveUser } from '../common/decorators/active-user.decorator';
@@ -17,5 +17,9 @@ export class TransactionController {
     @ActiveUser() user: ActiveUserInterface,
   ) {
     return this.transactionService.create(createTransactionDto, user);
+  }
+
+  @Get() async findAll(@ActiveUser() user: ActiveUserInterface) {
+    return this.transactionService.findAllTransactionsUser(user);
   }
 }

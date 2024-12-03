@@ -1,4 +1,3 @@
-// src/transaction/transaction.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -29,7 +28,6 @@ export class TransactionService {
   ): Promise<Transaction> {
     const { amount, budgetId, description } = createTransactionDto;
 
-    // Busca la wallet usando el walletId del usuario
     const wallet = await this.walletRepository.findOne({
       where: { id: user.walletId },
     });
@@ -42,10 +40,9 @@ export class TransactionService {
       throw new BadRequestException('Insufficient balance in wallet');
     }
 
-    // Busca el presupuesto usando el budgetId y verifica que pertenezca al usuario
     const budget = await this.budgetRepository.findOne({
       where: { id: budgetId, user: { id: user.id } },
-      relations: ['user', 'category'], // Elimina 'wallet'
+      relations: ['user', 'category'],
     });
 
     console.log('Budget:', budget);
@@ -60,11 +57,9 @@ export class TransactionService {
       throw new BadRequestException('Amount exceeds budget limit');
     }
 
-    // Actualiza el balance de la wallet y el gasto del presupuesto
     wallet.balance -= amount;
     budget.spentAmount += amount;
 
-    // Crea la transacción
     const transaction = this.transactionRepository.create({
       amount,
       date: new Date(),
@@ -78,5 +73,22 @@ export class TransactionService {
     await this.budgetRepository.save(budget);
 
     return this.transactionRepository.save(transaction);
+  }
+
+  async findAllTransactionsUser(
+    user: ActiveUserInterface,
+  ): Promise<Transaction[]> {
+    const transactions = await this.transactionRepository.find({
+      where: { user: { id: user.id } },
+      relations: ['category', 'wallet'],
+    });
+
+    if (!transactions.length) {
+      throw new NotFoundException(
+        `No transactions found for user ID ${user.id}`,
+      );
+    }
+
+    return transactions;
   }
 }
