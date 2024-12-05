@@ -19,6 +19,12 @@ export class Transaction {
   @Column('decimal')
   amount: number;
 
+  @Column()
+  name: string;
+
+  @Column({ nullable: true })
+  store: string;
+
   @Column('date')
   date: Date;
 

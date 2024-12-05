@@ -26,7 +26,7 @@ export class TransactionService {
     createTransactionDto: CreateTransactionDto,
     user: ActiveUserInterface,
   ): Promise<Transaction> {
-    const { amount, budgetId, description } = createTransactionDto;
+    const { amount, budgetId, description, name, store } = createTransactionDto;
 
     const wallet = await this.walletRepository.findOne({
       where: { id: user.walletId },
@@ -44,8 +44,6 @@ export class TransactionService {
       where: { id: budgetId, user: { id: user.id } },
       relations: ['user', 'category'],
     });
-
-    console.log('Budget:', budget);
 
     if (!budget) {
       throw new NotFoundException(
@@ -67,6 +65,8 @@ export class TransactionService {
       category: budget.category,
       user,
       description,
+      name,
+      store,
     });
 
     await this.walletRepository.save(wallet);
