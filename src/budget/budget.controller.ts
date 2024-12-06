@@ -26,8 +26,7 @@ export class BudgetController {
   ) {
     return this.budgetService.create(createBudgetDto, user);
   }
-  @Get('id')
-  async getAmount(
+  @Get(':budgetId') async getAmount(
     @ActiveUser() user: ActiveUserInterface,
     @Param('budgetId') budgetId: string,
   ) {
