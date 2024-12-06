@@ -1,18 +1,18 @@
-// src/budget/budget.service.ts
 import {
   Injectable,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThan } from 'typeorm';
 import { Budget } from './entities/budget.entity';
 import { CreateBudgetDto } from './dto/create-budget.dto';
+import { UpdateBudgetDto } from './dto/update-budget.dto';
 import { ActiveUserInterface } from '../common/interface/activeUserInterface';
 import { Category } from '../category/entities/category.entity';
 import { Wallet } from '../wallet/entities/wallet.entity';
 import { Transaction } from '../transaction/entities/transaction.entity';
-import { addDays, differenceInDays } from 'date-fns';
+import { addDays, differenceInDays, format } from 'date-fns';
 import { Period } from '../common/enum/period.enum';
 
 @Injectable()
@@ -28,12 +28,10 @@ export class BudgetService {
     private readonly transactionRepository: Repository<Transaction>,
   ) {}
 
-  async create(
-    createBudgetDto: CreateBudgetDto,
-    user: ActiveUserInterface,
-  ): Promise<Omit<Budget, 'user' | 'category'>> {
-    const { amount, categoryId, period } = createBudgetDto;
-
+  private async findCategoryById(
+    categoryId: string,
+    userId: string,
+  ): Promise<Category> {
     const category = await this.categoryRepository.findOne({
       where: { id: categoryId },
       relations: ['user'],
@@ -43,23 +41,73 @@ export class BudgetService {
       throw new NotFoundException(`Category with ID ${categoryId} not found`);
     }
 
-    if (category.user && category.user.id !== user.id) {
+    if (category.user && category.user.id !== userId) {
       throw new BadRequestException('Unauthorized access to custom category');
     }
 
-    const startDate = new Date();
-    const endDate =
-      period === Period.MONTHLY
-        ? addDays(startDate, 30)
-        : addDays(startDate, 15);
+    return category;
+  }
 
-    const wallet = await this.walletRepository.findOne({
-      where: { user: { id: user.id } },
+  private async checkActiveBudget(
+    categoryId: string,
+    userId: string,
+  ): Promise<void> {
+    const activeBudget = await this.budgetRepository.findOne({
+      where: {
+        category: { id: categoryId },
+        user: { id: userId },
+        endDate: MoreThan(new Date()),
+      },
     });
 
-    if (!wallet || wallet.balance < amount) {
+    if (activeBudget) {
+      throw new BadRequestException(
+        'Active budget already exists for this category',
+      );
+    }
+  }
+
+  private calculateEndDate(period: Period, startDate: Date): Date {
+    return period === Period.MONTHLY
+      ? addDays(startDate, 30)
+      : addDays(startDate, 15);
+  }
+
+  private async findWalletByUserId(userId: string): Promise<Wallet> {
+    const wallet = await this.walletRepository.findOne({
+      where: { user: { id: userId } },
+    });
+
+    if (!wallet) {
+      throw new BadRequestException('Wallet not found');
+    }
+
+    return wallet;
+  }
+
+  private async checkWalletBalance(
+    wallet: Wallet,
+    amount: number,
+  ): Promise<void> {
+    if (wallet.balance < amount) {
       throw new BadRequestException('Insufficient balance in wallet');
     }
+  }
+
+  async create(
+    createBudgetDto: CreateBudgetDto,
+    user: ActiveUserInterface,
+  ): Promise<Omit<Budget, 'user' | 'category'>> {
+    const { amount, categoryId, period } = createBudgetDto;
+    const category = await this.findCategoryById(categoryId, user.id);
+
+    await this.checkActiveBudget(categoryId, user.id);
+
+    const startDate = new Date();
+    const endDate = this.calculateEndDate(period, startDate);
+
+    const wallet = await this.findWalletByUserId(user.id);
+    await this.checkWalletBalance(wallet, amount);
 
     const budget = this.budgetRepository.create({
       amount,
@@ -77,6 +125,48 @@ export class BudgetService {
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { user: _, category: __, ...budgetWithoutRelations } = savedBudget;
+
+    return budgetWithoutRelations;
+  }
+
+  async update(
+    budgetId: string,
+    updateBudgetDto: UpdateBudgetDto,
+    user: ActiveUserInterface,
+  ): Promise<Omit<Budget, 'user' | 'category'>> {
+    const { amount } = updateBudgetDto;
+
+    const budget = await this.budgetRepository.findOne({
+      where: { id: budgetId, user: { id: user.id } },
+      relations: ['category'],
+    });
+
+    if (!budget) {
+      throw new NotFoundException(`Budget with ID ${budgetId} not found`);
+    }
+
+    if (amount < budget.amount) {
+      throw new BadRequestException(
+        'New amount must be greater than or equal to the current amount',
+      );
+    }
+
+    const wallet = await this.findWalletByUserId(user.id);
+
+    const amountDifference = amount - budget.amount;
+
+    if (wallet.balance + budget.amount < amount) {
+      throw new BadRequestException('Insufficient balance in wallet');
+    }
+
+    budget.amount = amount;
+    wallet.balance -= amountDifference;
+
+    await this.walletRepository.save(wallet);
+    const updatedBudget = await this.budgetRepository.save(budget);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { user: _, category: __, ...budgetWithoutRelations } = updatedBudget;
 
     return budgetWithoutRelations;
   }
@@ -125,6 +215,10 @@ export class BudgetService {
     const dailySpendingRate = daysElapsed > 0 ? totalSpent / daysElapsed : 0;
     const averageDailySpending = daysElapsed > 0 ? totalSpent / daysElapsed : 0;
 
+    const transactionDays = transactions.map((transaction) =>
+      format(new Date(transaction.date), 'EEEE'),
+    );
+
     return {
       totalBudgetAmount: budget.amount,
       totalAmountSpent: Number(totalSpent.toFixed(2)),
@@ -136,6 +230,7 @@ export class BudgetService {
       daysRemaining,
       dailySpendingRate: Number(dailySpendingRate.toFixed(2)),
       averageDailySpending: Number(averageDailySpending.toFixed(2)),
+      transactionDays,
     };
   }
 }
