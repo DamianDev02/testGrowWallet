@@ -26,6 +26,13 @@ export class BudgetController {
   ) {
     return this.budgetService.create(createBudgetDto, user);
   }
+  @Get()
+  async getAmount(
+    @ActiveUser() user: ActiveUserInterface,
+    @Param('budgetId') budgetId: string,
+  ) {
+    return this.budgetService.getAmount(budgetId, user);
+  }
 
   @Get('stats/:budgetId')
   async getStats(

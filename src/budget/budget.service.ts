@@ -233,4 +233,17 @@ export class BudgetService {
       transactionDays,
     };
   }
+
+  async getAmount(
+    budgetId: string,
+    user: ActiveUserInterface,
+  ): Promise<number> {
+    const budget = await this.budgetRepository.findOne({
+      where: { id: budgetId, user: { id: user.id } },
+    });
+    if (!budget) {
+      throw new NotFoundException(`Budget with ID ${budgetId} not found`);
+    }
+    return budget.amount;
+  }
 }
