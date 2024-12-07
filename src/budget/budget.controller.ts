@@ -26,11 +26,22 @@ export class BudgetController {
   ) {
     return this.budgetService.create(createBudgetDto, user);
   }
+
+  @Get() getAllBudgets(@ActiveUser() user: ActiveUserInterface) {
+    return this.budgetService.getAllBudgetsForUser(user);
+  }
   @Get(':budgetId') async getAmount(
     @ActiveUser() user: ActiveUserInterface,
     @Param('budgetId') budgetId: string,
   ) {
     return this.budgetService.getAmount(budgetId, user);
+  }
+
+  @Get('category/:categoryId') async getBudgetByCategory(
+    @Param('categoryId') categoryId: string,
+    @ActiveUser() user: ActiveUserInterface,
+  ) {
+    return this.budgetService.getBudgetByCategory(categoryId, user);
   }
 
   @Get('stats/:budgetId')

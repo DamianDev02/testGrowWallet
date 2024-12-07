@@ -246,4 +246,31 @@ export class BudgetService {
     }
     return budget.amount;
   }
+
+  async getAllBudgetsForUser(user: ActiveUserInterface): Promise<Budget[]> {
+    const budgets = await this.budgetRepository.find({
+      where: { user: { id: user.id } },
+      relations: ['category'],
+    });
+    if (!budgets.length) {
+      throw new NotFoundException('No budgets found for this user');
+    }
+    return budgets;
+  }
+
+  async getBudgetByCategory(
+    categoryId: string,
+    user: ActiveUserInterface,
+  ): Promise<Budget> {
+    const budget = await this.budgetRepository.findOne({
+      where: { category: { id: categoryId }, user: { id: user.id } },
+      relations: ['category'],
+    });
+    if (!budget) {
+      throw new NotFoundException(
+        `No budget found for category ID ${categoryId}`,
+      );
+    }
+    return budget;
+  }
 }
